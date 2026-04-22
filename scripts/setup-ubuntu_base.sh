@@ -20,6 +20,7 @@ EOF
 
 # apt update 
 echo "[3] apt update"
+echo "nameserver 8.8.8.8" | sudo tee rootfs/etc/resolv.conf
 apt update
 
 # install base packages
