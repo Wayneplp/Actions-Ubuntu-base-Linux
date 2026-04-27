@@ -2,12 +2,10 @@
 set -e
 echo "[1] setup locale"
 # env
-export LANG="en_US.UTF-8"
-export LANGUAGE="en_US:en"
-export LC_NUMERIC="C"
-export LC_CTYPE="C"
-export LC_MESSAGES="C"
-export LC_ALL="C"
+export LANG=C.UTF-8
+export LANGUAGE=C
+export LC_ALL=C.UTF-8
+export DEBIAN_FRONTEND=noninteractive
 
 # setup sources.list
 echo "[2] setup apt sources"
@@ -20,7 +18,7 @@ EOF
 
 # apt update 
 echo "[3] apt update"
-echo "nameserver 8.8.8.8" | sudo tee rootfs/etc/resolv.conf
+echo "nameserver 8.8.8.8" > /etc/resolv.conf
 apt update
 
 # install base packages
@@ -37,10 +35,9 @@ apt install -y \
     sudo \
     dbus \
     kmod \
-    udev \
-    rsyslog \
     net-tools \
     iproute2 \
+    udev \
     iputils-ping
 
 update-ca-certificates || true
@@ -48,8 +45,8 @@ update-ca-certificates || true
 echo "[5] install basic services"
 apt install -y \
     rsyslog \
-    cron
-
+    cron \
+    systemd-timesyncd
 systemctl enable rsyslog || true
 systemctl enable cron || true
 
@@ -82,9 +79,8 @@ apt install -y \
     xserver-xorg-input-libinput \
     mesa-utils \
     libgl1 \
-    libegl1 \
-    dbus \
-    udev
+    libegl1 
+
 
 # Python minimal
 echo "[9] install python"
@@ -139,8 +135,6 @@ deb https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports jammy-updates main restric
 deb https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports jammy-security main restricted universe multiverse
 EOF
 
-apt update
-
 #final system init
 echo "[15] final system setup"
 
@@ -157,7 +151,6 @@ EOF
 ln -sf /usr/share/zoneinfo/UTC /etc/localtime
 
 # NTP
-apt install -y systemd-timesyncd
 systemctl enable systemd-timesyncd || true
 
 # 防止 dpkg 残留状态问题
