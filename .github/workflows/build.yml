@@ -9,7 +9,7 @@ jobs:
     - name: Get release tag
       id: release_tag
       run: |
-        release_tag="Alpine-$(date +%Y-%m-%d)"
+        release_tag="Ubuntu-base-$(date +%Y-%m-%d)"
         echo "##[set-output name=release_tag;]$release_tag"
 
     - name: Create empty release
@@ -25,7 +25,7 @@ jobs:
       release_tag: ${{ steps.release_tag.outputs.release_tag }}
       upload_url: ${{ steps.release.outputs.upload_url }}
 
-  build_alpine:
+  build_ubuntu_base:
     needs: prepare_release
     runs-on: ubuntu-22.04
     if: github.event.repository.owner.id == github.event.sender.id
@@ -51,26 +51,26 @@ jobs:
         sudo rm -rf /usr/share/dotnet /usr/local/lib/android/sdk /usr/local/share/boost /opt/ghc
         echo "cores: $(nproc)"
 
-    - name: Download alpine-minirootfs
+    - name: Download ubuntu-base
       run: |
         mkdir project
         cd project
-        wget https://dl-cdn.alpinelinux.org/alpine/v3.23/releases/aarch64/alpine-minirootfs-3.23.2-aarch64.tar.gz
+        wget https://cdimage.ubuntu.com/ubuntu-base/releases/22.04/release/ubuntu-base-22.04.5-base-arm64.tar.gz -O rootfs.tar.gz
         mkdir rootfs
-        sudo -E tar xzfp alpine-minirootfs-3.23.2-aarch64.tar.gz --numeric-owner --same-owner -C rootfs
+        sudo -E tar xzfp rootfs.tar.gz --numeric-owner --same-owner -C rootfs
 
     - name: Apply customizations
       run: |
         sudo -u root bash -c '
           cd project
           cp /etc/resolv.conf rootfs/etc/resolv.conf
-          cp ../scripts/setup-alpine.sh rootfs/
+          cp ../scripts/setup-ubuntu_base.sh rootfs/
           source ../scripts/set_chroot_env.sh
           mount_chroot_env rootfs
-          LANG=C chroot rootfs /setup-alpine.sh
+          LANG=C chroot rootfs /setup-ubuntu_base.sh
           umount_chroot_env rootfs
           # clean
-          rm -f rootfs/setup-alpine.sh
+          rm -f rootfs/setup-ubuntu_base.sh
           rm -f rootfs/etc/resolv.conf
         '
 
@@ -94,7 +94,7 @@ jobs:
         overwrite: true
 
   build_img:
-    needs: [prepare_release,build_alpine]
+    needs: [prepare_release,build_ubuntu_base]
     runs-on: ubuntu-22.04
     if: github.event.repository.owner.id == github.event.sender.id
 
@@ -126,7 +126,7 @@ jobs:
         cd prebuilts/gcc-x64
         sudo tar xf toolchain-11.3-aarch64.tar.xz -C /
 
-    - name: Download alpine rootfs
+    - name: Download ubuntu-base rootfs
       uses: robinraju/release-downloader@v1.6
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -178,12 +178,24 @@ jobs:
         git clone https://github.com/friendlyarm/sd-fuse_${{ matrix.CPU }} -b ${BRANCH} --depth=1 sd-fuse
         sudo su -c "tar xzfp "../rootfs.tgz" -C sd-fuse --numeric-owner --same-owner"
         if [ "${KERNEL_VARIANT}" = "mainline" ]; then
-          sudo sed -i 's/ttyFIQ0/ttyS2/g' sd-fuse/rootfs/etc/inittab
+          if [ -f sd-fuse/rootfs/etc/inittab ]; then
+            sudo sed -i 's/ttyFIQ0/ttyS2/g' sd-fuse/rootfs/etc/inittab
+          fi
+
+          if [ -d sd-fuse/rootfs/etc/systemd/system/serial-getty@ttyFIQ0.service.d ]; then
+            sudo mv \
+              sd-fuse/rootfs/etc/systemd/system/serial-getty@ttyFIQ0.service.d \
+              sd-fuse/rootfs/etc/systemd/system/serial-getty@ttyS2.service.d
+          fi
+
+          if [ -f sd-fuse/rootfs/etc/securetty ]; then
+            sudo sed -i 's/ttyFIQ0/ttyS2/g' sd-fuse/rootfs/etc/securetty
+          fi
         fi
 
         cd sd-fuse
         sudo -u root bash -c '
-          OS_DIR=alpine-linux-arm64
+          OS_DIR=ubuntu-base-arm64
           mkdir ${OS_DIR}
 
           cp prebuilt/parameter.template ${OS_DIR}/parameter.txt
@@ -214,13 +226,13 @@ jobs:
           echo "version=$(date +%Y-%m-%d)" >> ./${OS_DIR}/info.conf
 
           # build sd image
-          FILENAME_SD=${{ matrix.CPU }}-sd-alpine-linux-arm64-$(date +%Y-%m-%d).img
+          FILENAME_SD=${{ matrix.CPU }}-sd-ubuntu-base-arm64-$(date +%Y-%m-%d).img
           echo "##[set-output name=img_filename_sd;]$FILENAME_SD"
           ./mk-sd-image.sh ${OS_DIR} ${FILENAME_SD}
           mv out/${FILENAME_SD} ../../artifact/
 
           # build sd-to-emmc image
-          FILENAME_SD2EMMC=${{ matrix.CPU }}-eflasher-alpine-linux-arm64-$(date +%Y-%m-%d).img
+          FILENAME_SD2EMMC=${{ matrix.CPU }}-eflasher-ubuntu-base-arm64-$(date +%Y-%m-%d).img
           echo "##[set-output name=img_filename_sd2emmc;]$FILENAME_SD2EMMC"
           wget http://112.124.9.243/dvdfiles/${{ matrix.CPU }}/images-for-eflasher/emmc-flasher-images.tgz
           tar xzf emmc-flasher-images.tgz
