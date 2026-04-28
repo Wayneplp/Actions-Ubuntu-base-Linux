@@ -65,6 +65,7 @@ jobs:
           cd project
           cp /etc/resolv.conf rootfs/etc/resolv.conf
           cp ../scripts/setup-ubuntu_base.sh rootfs/
+          chmod +x rootfs/setup-ubuntu_base.sh          
           source ../scripts/set_chroot_env.sh
           mount_chroot_env rootfs
           LANG=C chroot rootfs /setup-ubuntu_base.sh
