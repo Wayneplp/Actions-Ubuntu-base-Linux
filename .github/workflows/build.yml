@@ -68,7 +68,7 @@ jobs:
           chmod +x rootfs/setup-ubuntu_base.sh          
           source ../scripts/set_chroot_env.sh
           mount_chroot_env rootfs
-          LANG=C chroot rootfs /setup-ubuntu_base.sh
+          LANG=C chroot rootfs /bin/bash /setup-ubuntu_base.sh
           umount_chroot_env rootfs
           # clean
           rm -f rootfs/setup-ubuntu_base.sh
